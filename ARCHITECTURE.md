@@ -54,7 +54,36 @@ Aunque Firecracker es el "sueño arquitectónico" para el futuro (fase Scale-up)
 *   **Optimización de Costos:** Usaremos **Fargate Spot** (hasta 70% de descuento) para las cargas de trabajo de los agentes, ya que podemos tolerar interrupciones (o manejarlas con reintentos).
 *   **Seguridad:** Cada agente corre en su propia ENI (Interfaz de Red) y Sandbox de Fargate.
 
-## 3. Estimación de Costos (100 Agentes 24/7)
+## 4. Cost Optimization & Scale-to-Zero Strategy
+
+Bajo el modelo "Pay-as-you-go", el objetivo es que el coste de infraestructura sea linealmente proporcional al uso real. **Si nadie usa el agente, el coste debe ser cercano a $0.**
+
+### Estrategia: "Scale-to-Zero" Estricto
+Los agentes no son demonios de larga duración (24/7). Son efímeros.
+1.  **Idle Timeout:** Si un agente no recibe comandos en X minutos (e.g., 15 min), el contenedor se termina.
+2.  **State Hydration:** El estado (memoria, ficheros) se persiste en S3/EFS antes de morir. Al revivir, se "hidrata" el nuevo contenedor.
+
+### El Dilema del "Cold Start" (Validación Técnica)
+El principal trade-off de Fargate en un modelo Scale-to-Zero es el tiempo de arranque.
+
+| Tecnología | Cold Start | Coste Idle | Complejidad Ops |
+| :--- | :--- | :--- | :--- |
+| **AWS Fargate** | ~30-60s | $0 (si apagado) | Baja (Serverless) |
+| **Firecracker (Fly.io)** | < 500ms | $0 (si apagado) | Media (Vendor specific) |
+| **Warm Pool (Fargate)** | < 2s | $$ (siempre encendido) | Media (Gestión de pool) |
+
+### 🧠 Veredicto de Arquitectura: Fargate Spot (MVP)
+
+A pesar de que 45s de espera es una fricción UX significativa, **mantenemos Fargate Spot para el MVP** por las siguientes razones:
+
+1.  **Simplicidad Operativa:** No queremos gestionar clusters de Kubernetes ni VMs bare metal en la fase 1.
+2.  **Mitigación UX:** Se implementará una pantalla de carga ("Despertando a tu Agente... ☕") que es aceptable para herramientas profesionales de uso por sesión.
+3.  **Roadmap:**
+    *   **Fase 1 (MVP):** Fargate Spot. Cold start ~45s.
+    *   **Fase 2 (Optimización):** Mantener un "Hot Pool" de 2-3 agentes pre-calentados para usuarios Premium.
+    *   **Fase 3 (Ideal):** Migrar a orquestación basada en Firecracker (vía Fly.io machines API o AWS Bare Metal) para arranques sub-segundo.
+
+## 5. Estimación de Costos (100 Agentes 24/7)
 
 Supuesto: 100 agentes corriendo continuamente durante un mes (730 horas).
 Recursos por Agente: 0.5 vCPU, 1 GB RAM (Suficiente para MVP de Node.js/Python scripts).
