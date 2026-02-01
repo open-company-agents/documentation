@@ -45,17 +45,6 @@ Estimación basada en precios de mercado Q4 2024 / Q1 2025.
 *   **Input:** ~$0.25 / 1M tokens
 *   **Output:** ~$1.25 / 1M tokens
 
-### Consumo Mensual Estimado (Perfil "Medio")
-*Supuestos:* 100 interacciones/día, 30 días. 1k tokens in / 500 tokens out por interacción.
-*   Total Input: 3M tokens/mes.
-*   Total Output: 1.5M tokens/mes.
-
-| Mix de Modelos | Coste Input | Coste Output | **Coste Total LLM** |
-| :--- | :--- | :--- | :--- |
-| **100% Smart** | $9.00 | $22.50 | **$31.50** |
-| **100% Fast** | $0.75 | $1.88 | **$2.63** |
-| **Híbrido (20% Smart / 80% Fast)** | $2.40 | $6.00 | **$8.40** |
-
 ## 3. Frontend & Edge
 
 *   **Vercel Pro:** $20/usuario/mes.
@@ -64,45 +53,53 @@ Estimación basada en precios de mercado Q4 2024 / Q1 2025.
     *   Coste base cercano a $0. Paga por GB transferido (~$0.085/GB).
     *   Mucho más barato a escala, pero requiere mantenimiento DevOps.
 
-**Decisión:** Iniciar con Vercel (Free/Pro) para velocidad. Migrar a CloudFront si la factura supera los $500/mes.
-
 ---
 
-## 4. Unit Economics (Por Agente Activo)
+## 4. Pay-As-You-Go Model (Strategic Pivot)
 
-Escenario: Agente 24/7 en Fargate Spot, Mix Híbrido de LLM, Infraestructura compartida.
+**Context:** The fixed $49/mo subscription was identified as a high barrier to entry. We are pivoting to a prepaid credit system ("Pay-as-you-go").
 
-| Concepto | Coste Mensual Estimado | Notas |
-| :--- | :--- | :--- |
-| Compute (Spot 0.5vCPU/1GB) | $9.70 | Fargate Spot |
-| LLM (Híbrido) | $8.40 | 100 interacciones/día |
-| Storage/Logs/DB | $2.00 | DynamoDB, CloudWatch, S3 |
-| NAT/Network (Amortizado) | $0.50 | Asumiendo 50+ agentes |
-| **COSTO TOTAL (COGS)** | **$20.60** | **Por agente/mes** |
+### Unit Pricing Structure
 
-## 5. Pricing Recommendation
+1.  **Compute Runtime:**
+    *   **Price:** **$0.035 / active hour**.
+    *   *Cost Basis:* ~$0.013-0.015/h (Fargate Spot + Networking/NAT share).
+    *   *Margin:* ~57% on compute. Covers idle overheads, orchestration, and "scale to zero" inefficiencies.
+    *   *Behavior:* Billing stops when the agent is paused/stopped.
 
-Objetivo: **Margen Bruto > 40%**.
-Costo Base: ~$20.60
+2.  **Intelligence (Tokens):**
+    *   **Price:** **Provider Cost + 20%**.
+    *   *Mechanism:* Real-time metering based on OpenRouter/API usage.
+    *   *Rationale:* 20% margin covers token processing overhead, logging, and payment processing fees (Stripe).
 
-### Tier: "Professional Agent"
-*   **Precio Sugerido:** **$49 / mes**
-*   **Margen:** $28.40 (58%)
-*   **Incluye:**
-    *   Agente 24/7.
-    *   Hasta 3000 interacciones/mes (Soft limit).
-    *   Acceso a modelos "Smart" (limitado/rate-limited).
+### Break-Even Analysis
 
-### Tier: "Enterprise / Power"
-*   **Precio Sugerido:** **$99 / mes**
-*   **Margen:** $78.40 (79% - asumiendo mismo uso base)
-*   **Incluye:**
-    *   Mayor memoria/CPU (si necesario).
-    *   Prioridad en modelos "Smart".
-    *   SLA de soporte.
-    *   Retención de logs extendida.
+With the removal of fixed subscriptions, we must ensure "active" users cover their baseline footprint.
 
-### Observaciones Finales
-1.  **Spot es crítico:** Sin Spot, el coste de cómputo salta a ~$32, comiendo todo el margen del plan de $49.
-2.  **Control de Tokens:** Es vital implementar *rate limiting* o *budgets* de tokens por usuario para evitar que un solo usuario "heavy" destruya el margen (e.g. loops infinitos con GPT-4o).
-3.  **Idle Scaling:** Si el agente no necesita estar activo 24/7 (scale to zero), el coste de cómputo baja drásticamente (a casi $0). Considerar arquitectura *Serverless Lambda* para agentes que no requieren procesos de larga duración.
+*   **Fixed Baseline Costs (per active user/month):**
+    *   Log Storage (CloudWatch/S3): ~$0.50 (Hot storage).
+    *   Database State (DynamoDB): ~$0.20.
+    *   Shared Infrastructure (NAT/ALB): ~$0.30.
+    *   **Total Baseline:** **~$1.00 / month** if the user exists and has data.
+*   **Break-Even Point:**
+    *   A user needs to consume **~$2.50 in credits per month** to be profitable (assuming ~40% blended margin).
+    *   This equals approx **10-15 hours of active agent work** OR **~500k "Fast" tokens**.
+
+### Free Tier Feasibility ($1.00 Credit)
+
+Giving $1.00 in free credits is a low-risk User Acquisition strategy.
+
+**What does $1.00 buy?**
+*   **Scenario A (Exploration):** ~28 hours of runtime (idle/thinking) using minimal tokens.
+*   **Scenario B (Heavy Coding - Smart Models):**
+    *   2 Hours Runtime ($0.07).
+    *   40k Tokens (Claude 3.5 Sonnet @ ~$15/M In+Out blended): ~$0.60.
+    *   **Result:** ~2.5 hours of intense "Senior Dev" pair programming.
+*   **Conclusion:** $1.00 is sufficient for a "Wow" moment, allowing a user to complete 1 meaningful task (e.g., "Refactor this file" or "Write a test suite").
+
+### Recommendation
+Implement a prepaid wallet system.
+*   **Min Top-up:** $5.00.
+*   **Auto-pause:** Agents suspend automatically when balance < $0.
+*   **Expiration:** Credits expire after 12 months (GAAP revenue recognition).
+*   **Enterprise:** Volume discounts available for usage > $500/mo.
